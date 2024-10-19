@@ -2,3 +2,5 @@
 .DS_Store
 env_aaamlp
 *.csv
+*.ipynb_checkpoints
+
