@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 
 import os
+import numpy as np
 import pandas as pd
 
 from sklearn import set_config
@@ -13,19 +14,35 @@ from sklearn.model_selection import (
     KFold,
     StratifiedKFold,
     LeaveOneOut,
-    GroupKFold,
     train_test_split,
+    StratifiedGroupKFold,
 )
 
 MAPPINGS = {
     "kfold": KFold,
     "skfold": StratifiedKFold,
     "l1o": LeaveOneOut,
-    "gkfold": GroupKFold,
+    "sgkfold": StratifiedGroupKFold,
     "hold": train_test_split,
 }
 
 path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+
+
+def get_dummy_data():
+
+    X = pd.DataFrame(np.ones((17, 2)), columns=["X", "X1"])
+    y = pd.DataFrame(
+        np.array([0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]), columns=["y"]
+    )
+    groups = pd.DataFrame(
+        np.array([1, 1, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 6, 7, 8, 8]),
+        columns=["groups"],
+    )
+
+    X = pd.concat([X, y, groups], axis=1)
+
+    return X
 
 
 def load_wine():
@@ -43,7 +60,15 @@ def assert_cv_strategies(cv):
     assert cv in MAPPINGS.keys(), assert_message
 
 
-def report_cv(X):
+def report_cv(X, sgkfold=False):
+
+    if sgkfold:
+        pt = X.pivot_table(
+            index=["groups", "fold"], columns="y", values="X", aggfunc=len, margins=True
+        )
+        print(pt)
+        return
+
     r = X.groupby(["fold"])["quality"].value_counts().unstack()
 
     # estamos en un caso de leave one out cv
@@ -121,6 +146,24 @@ def add_stratified_kfolds():
     return X
 
 
+def add_stratified_group_kfolds():
+
+    X = get_dummy_data()
+    y = X["y"]
+    groups = X["groups"]
+
+    X["fold"] = -1
+
+    sgkfold = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=175)
+
+    for split, (_, test_idx) in enumerate(sgkfold.split(X, y, groups), start=1):
+        X.loc[test_idx, "fold"] = split
+
+    report_cv(X=X, sgkfold=True)
+
+    return X
+
+
 def main(cv: str):
     assert_cv_strategies(cv=cv)
 
@@ -135,6 +178,9 @@ def main(cv: str):
 
     if cv == "l1o":
         X = add_leave_one_out_fold()
+
+    if cv == "sgkfold":
+        X = add_stratified_group_kfolds()
 
 
 if __name__ == "__main__":
